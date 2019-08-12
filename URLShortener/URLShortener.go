@@ -2,6 +2,8 @@ package URLShortener
 
 import (
 	"net/http"
+
+	yamlV2 "gopkg.in/yaml.v2"
 )
 
 // MapHandler will return an http.HandlerFunc (which also
@@ -12,8 +14,8 @@ import (
 // http.Handler will be called instead.
 func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if val, ok := pathsToUrls[r.URL.Path]; ok {
-			http.Redirect(w, r, val, 301)
+		if path, ok := pathsToUrls[r.URL.Path]; ok {
+			http.Redirect(w, r, path, http.StatusPermanentRedirect)
 		}
 		fallback.ServeHTTP(w, r)
 	}
@@ -35,7 +37,26 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 //
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
-func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	// TODO: Implement this...
-	return nil, nil
+
+func YAMLHandler(yaml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	yamlMap, err := parseYAML(yaml)
+	if err != nil {
+		return nil, err
+	}
+	pathsToURLMap := buildMap(yamlMap)
+	return MapHandler(pathsToURLMap, fallback), err
+}
+
+func parseYAML(yaml []byte) (yamlMap []map[string]string, err error) {
+	err = yamlV2.Unmarshal(yaml, &yamlMap)
+	return yamlMap, err
+}
+
+func buildMap(yamlMap []map[string]string) map[string]string {
+	returnMap := make(map[string]string)
+	for _, value := range yamlMap {
+		key := value["path"]
+		returnMap[key] = value["url"]
+	}
+	return returnMap
 }
